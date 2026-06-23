@@ -277,11 +277,16 @@ const createManualCourse = async (req, res) => {
   try {
     const { title, duration } = req.body;
     const numDays = Math.max(1, Math.min(30, parseInt(duration, 10) || 7));
+    console.log(`[Manual Course] 🚀 Bắt đầu tạo khóa học thủ công: "${title.trim()}" (${numDays} ngày) cho Giảng viên ID: ${req.user.id}`);
     const newPlan = await Plan.create({ title: title.trim(), owner: req.user.id, instructorId: null, duration: numDays, sourceType: "manual", status: "pending" });
     const lessons = Array.from({ length: numDays }, (_, i) => ({ planId: newPlan._id, dayNumber: i + 1, title: `Ngày ${i + 1}`, content: `## Ngày ${i + 1}\n\n*(Chưa có nội dung)*`, status: 'locked' }));
     await Lesson.insertMany(lessons);
+    console.log(`[Manual Course] ✅ Đã tạo khóa học thủ công thành công. Plan ID: ${newPlan._id}`);
     return res.status(201).json({ success: true, data: { planId: newPlan._id } });
-  } catch (error) { return res.error(error.message, 500); }
+  } catch (error) { 
+    console.error("❌ createManualCourse error:", error);
+    return res.error(error.message, 500); 
+  }
 };
 const generateAIQuiz = async (req, res) => {
   try {
@@ -355,11 +360,11 @@ const getMyStudents = async (req, res) => {
     return res.error("Không thể lấy danh sách học viên: " + error.message, 500);
   }
 };
-// ── CLONE TOÀN BỘ KHOÁ HỌC THÀNH BẢN TỰ TẠO CỦA GV ──────────────────
 const cloneCourseAsSelf = async (req, res) => {
   try {
     const { planId } = req.params;
     const instructorId = req.user.id;
+    console.log(`[Clone Course] 🚀 Giảng viên ID: ${instructorId} bắt đầu clone khóa học gốc ID: ${planId} thành bản tự tạo.`);
 
     const plan = await Plan.findOne({
       _id: planId,
@@ -427,6 +432,7 @@ const cloneCourseAsSelf = async (req, res) => {
     });
 
     await Lesson.insertMany(clonedLessonsData);
+    console.log(`[Clone Course] ✅ Clone khóa học tự tạo thành công. Cloned Plan ID: ${clonedPlan._id}`);
 
     return res.success({ planId: clonedPlan._id }, "Đã lưu thành một khoá học tự tạo mới.");
   } catch (error) {

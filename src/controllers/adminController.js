@@ -1,6 +1,8 @@
 const User = require("../models/User");
 const Plan = require("../models/Plan");
 const Lesson = require("../models/Lesson");
+const Review = require("../models/Review");
+const InstructorRating = require("../models/InstructorRating");
 const bcrypt = require("bcryptjs");
 
 // ============================================================
@@ -221,6 +223,16 @@ const deleteUser = async (req, res) => {
 
     // Soft delete các khoá học của user
     await Plan.updateMany({ owner: id }, { isDeleted: true, deletedByOwner: true });
+
+    // Ẩn danh hoá bình luận (Reviews) và đánh giá giảng viên (InstructorRatings) bằng cách set về null
+    await Review.updateMany({ userId: id }, { $set: { userId: null } });
+    await InstructorRating.updateMany({ learner: id }, { $set: { learner: null } });
+
+    // Xoá user khỏi danh sách likes và dislikes của các bình luận
+    await Review.updateMany(
+      { $or: [{ likes: id }, { dislikes: id }] },
+      { $pull: { likes: id, dislikes: id } }
+    );
 
     // Xoá user
     await User.findByIdAndDelete(id);

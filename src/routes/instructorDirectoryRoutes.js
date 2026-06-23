@@ -20,6 +20,9 @@ router.get("/:instructorId/my-rating", verifyToken, ctrl.getMyRating);
 // Xem tất cả đánh giá của 1 giáo viên
 router.get("/:instructorId/ratings", verifyToken, ctrl.getInstructorRatings);
 
+// Học viên gỡ đánh giá của mình cho 1 giáo viên
+router.delete("/:instructorId/my-rating", verifyToken, ctrl.deleteMyRating);
+
 // ── INSTRUCTOR ONLY ────────────────────────────────────────
 // Giáo viên xem hồ sơ của mình
 router.get("/me", verifyToken, checkRole(["instructor"]), ctrl.getMyInstructorProfile);

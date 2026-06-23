@@ -28,25 +28,26 @@ app.use('/api/assignment', require('./routes/assignmentRoutes'));
 app.use('/api/enrollment', require('./routes/enrollmentRoutes'));
 app.use('/api/attempt', require('./routes/attemptRoutes'));
 app.use('/api/document', require('./routes/documentRoutes'));
-app.use('/api/instructor', require('./routes/instructorRoutes')); 
-app.use('/api/market',     require('./routes/marketRoutes')); 
+app.use('/api/instructor', require('./routes/instructorRoutes'));
+app.use('/api/market', require('./routes/marketRoutes'));
 app.use('/api/lesson-quiz', require('./routes/lessonQuizRoutes')); // ✅ Adaptive Learning Quiz
 app.use('/api/instructor-directory', require('./routes/instructorDirectoryRoutes')); // ✅ Thư mục Giáo viên
-app.use('/api/admin',               require('./routes/adminRoutes'));                 // ✅ Admin Panel
-app.use('/api/friends',             require('./routes/friendRoutes'));                // ✅ Quản lý bạn bè
-
+app.use('/api/admin', require('./routes/adminRoutes'));                 // ✅ Admin Panel
+app.use('/api/friends', require('./routes/friendRoutes'));                // ✅ Quản lý bạn bè
+app.use('/api/reviews', require('./routes/reviewRoutes'));
+app.use('/api/reports', require('./routes/reportRoutes'));     // ✅ Báo cáo vi phạm
 
 
 // 4. Middleware xử lý lỗi cuối cùng (Global Error Handler)
 // Đây là nơi app.use thực sự hoạt động
 app.use((err, req, res, next) => {
     console.error("🔥 Hệ thống gặp lỗi:", err.stack);
-    
+
     // Sử dụng res.error đã định nghĩa ở trên
     if (res.error) {
         return res.error(err.message || "Lỗi Server", err.status || 500);
     }
-    
+
     // Dự phòng nếu res.error chưa kịp định nghĩa
     res.status(500).json({
         success: false,

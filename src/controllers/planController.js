@@ -613,7 +613,10 @@ const getMyPlans = async (req, res) => {
       owner: userId,
       isDeleted: false,
       deletedByOwner: { $ne: true },
-      status: { $ne: "teaching" } // Ẩn bản clone đang được giáo viên giữ
+      status: { $ne: "teaching" }, // Ẩn bản clone đang được giáo viên giữ
+      // ✅ FIX: Loại trừ bản clone Market (isPublic=true + có originalPlanId)
+      // Bản này chỉ xuất hiện ở "Quản lý Market", không phải danh sách học
+      $nor: [{ isPublic: true, originalPlanId: { $ne: null } }]
     }).lean();
 
     const plansWithProgress = await Promise.all(
@@ -732,6 +735,16 @@ const deletePlan = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Không tìm thấy lộ trình hoặc bạn không có quyền xóa.",
+      });
+    }
+
+    // ✅ FIX: Không cho phép xóa bản clone Market qua endpoint này.
+    // Bản clone Market là plan có isPublic=true VÀ originalPlanId!=null.
+    // Để gỡ khỏi Market, người dùng phải dùng chức năng "Gỡ khỏi Market" (unlistCourse).
+    if (plan.isPublic && plan.originalPlanId) {
+      return res.status(400).json({
+        success: false,
+        message: "Không thể xóa khóa học đang niêm yết trên Market. Vui lòng vào mục 'Quản lý Market' và chọn 'Gỡ khỏi Market' trước.",
       });
     }
 

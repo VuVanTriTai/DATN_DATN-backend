@@ -13,6 +13,14 @@ const connectDB = async () => { //Đây là một hàm bất đồng bộ.
     const conn = await mongoose.connect(process.env.MONGODB_URI);
     // Nếu kết nối thành công, in ra thông báo với tên host
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    
+    // Drop index cũ để mongoose build lại index mới có partialFilterExpression
+    try {
+      await conn.connection.db.collection('instructorratings').dropIndex('instructor_1_learner_1');
+      console.log('✅ Dropped old unique index instructor_1_learner_1');
+    } catch (indexError) {
+      // Index không tồn tại hoặc lỗi khác (bỏ qua vì không ảnh hưởng)
+    }
   } catch (error) {//
     // Nếu có lỗi xảy ra trong quá trình kết nối, in lỗi ra console
     // Sau đó thoát ứng dụng với mã lỗi 1 (thường dùng để chỉ lỗi không mong muốn)

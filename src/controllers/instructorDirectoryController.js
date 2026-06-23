@@ -213,6 +213,45 @@ const getInstructorRatings = async (req, res) => {
 };
 
 /**
+ * DELETE /api/instructor-directory/:instructorId/my-rating
+ * Học viên gỡ đánh giá của mình cho giáo viên
+ */
+const deleteMyRating = async (req, res) => {
+  try {
+    const { instructorId } = req.params;
+    const learnerId = req.user.id;
+
+    const deleted = await InstructorRating.findOneAndDelete({
+      instructor: instructorId,
+      learner: learnerId,
+    });
+
+    if (!deleted) return res.error("Không tìm thấy đánh giá để xoá.", 404);
+
+    // Tính lại avgRating và ratingCount
+    const ratings = await InstructorRating.find({ instructor: instructorId });
+    const ratingCount = ratings.length;
+    const avgRating =
+      ratingCount > 0
+        ? parseFloat(
+            (ratings.reduce((s, r) => s + r.stars, 0) / ratingCount).toFixed(1)
+          )
+        : 0;
+
+    await User.findByIdAndUpdate(instructorId, {
+      $set: {
+        "instructorProfile.avgRating": avgRating,
+        "instructorProfile.ratingCount": ratingCount,
+      },
+    });
+
+    return res.success({ avgRating, ratingCount }, "Đã gỡ đánh giá thành công.");
+  } catch (error) {
+    return res.error(error.message, 500);
+  }
+};
+
+/**
  * GET /api/instructor-directory/me
  * Giáo viên xem hồ sơ + lĩnh vực của chính mình
  */
@@ -233,6 +272,7 @@ module.exports = {
   getInstructorDirectory,
   rateInstructor,
   getMyRating,
+  deleteMyRating,
   getInstructorRatings,
   getMyInstructorProfile,
 };

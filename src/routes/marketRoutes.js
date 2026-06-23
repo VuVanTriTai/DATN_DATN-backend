@@ -25,4 +25,8 @@ router.get("/my-imports", verifyToken, marketController.getMyImports);
 // DELETE /api/market/my-imports/:id -- hoc vien xoa khoa hoc da import khoi kho ca nhan
 router.delete("/my-imports/:id", verifyToken, marketController.removeImport);
 
-module.exports = router;
+
+router.get("/recommendations", verifyToken, marketController.getMarketRecommendations);
+
+
+module.exports = router;
