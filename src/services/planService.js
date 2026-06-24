@@ -549,12 +549,13 @@ const extractCodeIdentifiers = (text) => {
 
   const found = new Set();
 
+  // 1. Trích xuất SQL Identifiers (Tương thích ngược đầy đủ)
   // Stored Procedures / Functions: sp*, fn*, usp*
   const spMatches = src.match(/\b(sp[A-Z][A-Za-z0-9_]+|usp[A-Z][A-Za-z0-9_]+|fn[A-Z][A-Za-z0-9_]+)/g) || [];
   spMatches.forEach(m => found.add(m));
 
   // CREATE PROC / CREATE PROCEDURE / CREATE FUNCTION tên
-  const createMatches = src.match(/CREATE\s+(?:PROC|PROCEDURE|FUNCTION)\s+(\w+)/gi) || [];
+  const createMatches = src.match(/CREATE\s+(?:PROC|PROCEDURE|FUNCTION|TABLE|VIEW)\s+(\w+)/gi) || [];
   createMatches.forEach(m => {
     const name = m.split(/\s+/).pop();
     if (name && name.length > 2) found.add(name);
@@ -572,6 +573,32 @@ const extractCodeIdentifiers = (text) => {
   // Tên biến SQL hệ thống (@@TRANCOUNT, @@IDENTITY, @@ROWCOUNT)
   const sysVars = src.match(/@@[A-Z]+/gi) || [];
   sysVars.forEach(m => found.add(m));
+
+  // 2. Trích xuất định danh lập trình chung (Python/JS/TS/Java/C++...)
+  // Tên hàm/phương thức: fetch_data(, calculateSum(
+  const fnMatches = src.match(/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g) || [];
+  fnMatches.forEach(m => {
+    const name = m.replace('(', '').trim();
+    // Loại trừ các keywords lập trình phổ biến để tránh lọt vào identifiers
+    if (name && name.length > 2 && !/^(if|while|for|switch|catch|def|class|function|print|console|log|return|SELECT|INSERT|UPDATE|DELETE|JOIN|CAST|CONVERT|YEAR|MONTH|DAY|LEN|ABS|ROUND|SUM|AVG|COUNT|MIN|MAX|AND|OR|NOT)$/i.test(name)) {
+      found.add(name);
+    }
+  });
+
+  // Tên biến/khái niệm đi kèm khai báo: const myVar, let myVar, def myFunction
+  const declarationMatches = src.match(/\b(?:const|let|var|def|class)\s+([a-zA-Z_][a-zA-Z0-9_]*)/g) || [];
+  declarationMatches.forEach(m => {
+    const name = m.split(/\s+/).pop();
+    if (name && name.length > 2 && !/^(if|else|while|for|return|import|from)$/i.test(name)) {
+      found.add(name);
+    }
+  });
+
+  // Tên class PascalCase (viết hoa chữ cái đầu và chữ cái giữa ví dụ: UserController)
+  const pascalMatches = src.match(/\b([A-Z][a-z0-9]+[A-Z][a-zA-Z0-9]*)\b/g) || [];
+  pascalMatches.forEach(name => {
+    if (name && name.length > 3) found.add(name);
+  });
 
   return [...found].slice(0, 15);
 };
