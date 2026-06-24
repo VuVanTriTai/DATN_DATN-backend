@@ -2,33 +2,11 @@
 "use strict";
 
 /**
- * Topic Classifier for SQL/Database document chunks.
+ * Topic Classifier for academic and technical document chunks.
  *
- * Classifies each chunk into ONE of the following canonical topics
+ * Classifies each chunk into ONE of the canonical topics (SQL, Math, Science, Business, IT, etc.)
  * so that RAG retrieval can be filtered by topic instead of pulling
- * in unrelated content (e.g. stored procedures into a date-function lesson).
- *
- * Topic taxonomy (add more as needed):
- *   date_function        — DATEADD, DATEDIFF, GETDATE, FORMAT, YEAR/MONTH/DAY…
- *   string_function      — LEN, SUBSTRING, CHARINDEX, REPLACE, UPPER/LOWER…
- *   math_function        — ABS, ROUND, CEILING, FLOOR, POWER, SQRT…
- *   aggregate_function   — SUM, AVG, COUNT, MIN, MAX, GROUP BY, HAVING…
- *   conversion_function  — CAST, CONVERT, TRY_CAST, TRY_CONVERT, PARSE…
- *   window_function      — ROW_NUMBER, RANK, DENSE_RANK, NTILE, LEAD, LAG, OVER…
- *   join                 — INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN, CROSS JOIN…
- *   subquery             — subquery, CTE, WITH …AS, EXISTS, IN (subquery)…
- *   stored_procedure     — CREATE PROCEDURE, EXEC, sp_, procedure body…
- *   trigger              — CREATE TRIGGER, AFTER/BEFORE INSERT/UPDATE/DELETE…
- *   transaction          — BEGIN TRAN, COMMIT, ROLLBACK, SAVEPOINT…
- *   temp_table           — #temp, ##global_temp, table variable, @table…
- *   control_flow         — IF/ELSE, WHILE, CASE, BREAK, CONTINUE, GOTO, RETURN…
- *   index                — CREATE INDEX, CLUSTERED, NONCLUSTERED, INCLUDE…
- *   ddl                  — CREATE TABLE, ALTER TABLE, DROP TABLE, TRUNCATE…
- *   dml                  — INSERT, UPDATE, DELETE, MERGE, UPSERT…
- *   view                 — CREATE VIEW, ALTER VIEW, DROP VIEW…
- *   cursor               — DECLARE CURSOR, OPEN, FETCH, CLOSE…
- *   error_handling       — TRY/CATCH, THROW, RAISERROR, @@ERROR…
- *   general              — fallback when no specific topic matches
+ * in unrelated content.
  */
 
 // ─────────────────────────────────────────────
@@ -36,7 +14,44 @@
 // ─────────────────────────────────────────────
 
 const TOPIC_RULES = [
-  // ── Stored Procedure ─────────────────────
+  // ── Math & Statistics ─────────────────────
+  {
+    topic: "math_statistics",
+    patterns: [
+      /\b(đạo\s+hàm|tích\s+phân|giới\s+hạn|xác\s+suất|thống\s+kê|phương\s+sai|độ\s+lệch\s+chuẩn|hồi\s+quy|phương\s+trình|ma\s+trận|đại\s+số|hình\s+học|nhân\s+tử|tích\s+lũy)\b/i,
+      /\b(derivative|integral|probability|statistics|variance|standard\s+deviation|regression|equation|matrix|algebra|geometry|calculus|hypothesis\s+testing|anova|t-test)\b/i,
+      /[+\-*/=<>≤≥≈∑∏√∫]/, // ký hiệu toán học phổ biến kết hợp với các từ ngữ khác
+    ],
+  },
+
+  // ── Natural Sciences (Physics, Chemistry, Biology, Medicine) ─────────────
+  {
+    topic: "natural_science",
+    patterns: [
+      /\b(quang\s+hợp|tế\s+bào|gen|di\s+truyền|phân\s+bào|DNA|RNA|axit|bazơ|hóa\s+trị|phản\s+ứng|nguyên\s+tử|phân\s+tử|lực\s+hấp\s+dẫn|năng\s+lượng|vận\s+tốc|gia\s+tốc|điện\s+từ|quang\s+học|nhiệt\s+động)\b/i,
+      /\b(photosynthesis|cell|gene|genetic|mitosis|meiosis|molecule|atom|gravitation|velocity|acceleration|electromagnetic|optics|thermodynamics|acid|base|chemical\s+reaction|biology|physics|chemistry)\b/i,
+    ],
+  },
+
+  // ── Social Sciences & Humanities (History, Geography, Philosophy) ─────────────
+  {
+    topic: "social_science",
+    patterns: [
+      /\b(lịch\s+sử|triều\s+đại|cách\s+mạng|chiến\s+tranh|khảo\s+cổ|địa\s+lý|kinh\s+độ|vĩ\s+độ|khí\s+hậu|địa\s+hình|triết\s+học|nhân\s+học|xã\s+hội|ngôn\s+ngữ|văn\s+hóa|pháp\s+luật|chính\s+trị)\b/i,
+      /\b(history|dynasty|revolution|war|archaeology|geography|latitude|longitude|climate|topography|philosophy|anthropology|sociology|linguistics|culture|politics|constitution)\b/i,
+    ],
+  },
+
+  // ── Economics & Business ─────────────────────
+  {
+    topic: "economics_business",
+    patterns: [
+      /\b(cung\s+cầu|lạm\s+phát|tài\s+chính|đầu\s+tư|doanh\s+nghiệp|thị\s+trường|cổ\s+phiếu|trái\s+phiếu|lợi\s+nhuận|doanh\s+thu|chi\s+phí|ngân\s+hàng|tiêu\s+dùng|sản\s+xuất|quản\s+trị|chiến\s+lược|quảng\s+cáo)\b/i,
+      /\b(supply\s+and\s+demand|inflation|finance|investment|enterprise|market|stock|bond|profit|revenue|cost|banking|consumption|production|management|strategy|marketing|advertising|gdp|inflation)\b/i,
+    ],
+  },
+
+  // ── Stored Procedure (SQL) ─────────────────────
   {
     topic: "stored_procedure",
     patterns: [
@@ -44,11 +59,11 @@ const TOPIC_RULES = [
       /\bEXEC(UTE)?\s+\w+/i,
       /\bSP_\w+/i,
       /\bPROC(EDURE)?\s+\w+/i,
-      /\b@\w+\s+AS\s+\w+/i,           // parameter declarations
+      /\b@\w+\s+AS\s+\w+/i,
     ],
   },
 
-  // ── Trigger ──────────────────────────────
+  // ── Trigger (SQL) ──────────────────────────────
   {
     topic: "trigger",
     patterns: [
@@ -59,7 +74,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Control Flow ─────────────────────────
+  // ── Control Flow (Programming / General) ─────────────────────────
   {
     topic: "control_flow",
     patterns: [
@@ -73,19 +88,19 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Temp Table / Table Variable ──────────
+  // ── Temp Table / Table Variable (SQL) ──────────
   {
     topic: "temp_table",
     patterns: [
       /\bCREATE\s+TABLE\s+#\w+/i,
       /\bINTO\s+#\w+/i,
-      /\b##\w+/,                        // global temp table
-      /\bDECLARE\s+@\w+\s+TABLE\b/i,   // table variable
+      /\b##\w+/,
+      /\bDECLARE\s+@\w+\s+TABLE\b/i,
       /\bSELECT\s+.*\s+INTO\s+#/i,
     ],
   },
 
-  // ── Transaction ──────────────────────────
+  // ── Transaction (SQL) ──────────────────────────
   {
     topic: "transaction",
     patterns: [
@@ -97,7 +112,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Error Handling ───────────────────────
+  // ── Error Handling (SQL / General) ───────────────────────
   {
     topic: "error_handling",
     patterns: [
@@ -109,7 +124,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Cursor ───────────────────────────────
+  // ── Cursor (SQL) ───────────────────────────────
   {
     topic: "cursor",
     patterns: [
@@ -121,7 +136,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Window Function ──────────────────────
+  // ── Window Function (SQL) ──────────────────────
   {
     topic: "window_function",
     patterns: [
@@ -135,7 +150,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Date Function ────────────────────────
+  // ── Date Function (SQL) ────────────────────────
   {
     topic: "date_function",
     patterns: [
@@ -148,12 +163,12 @@ const TOPIC_RULES = [
       /\bYEAR\s*\(|\bMONTH\s*\(|\bDAY\s*\(/i,
       /\bEOMonth\s*\(/i,
       /\bDATEFROMPARTS\s*\(/i,
-      /\bhàm\s+ngày\b|\bhàm\s+thời\s+gian\b/i,       // Vietnamese
+      /\bhàm\s+ngày\b|\bhàm\s+thời\s+gian\b/i,
       /\bxử\s+lý\s+ngày\b|\bdữ\s+liệu\s+ngày\b/i,
     ],
   },
 
-  // ── String Function ──────────────────────
+  // ── String Function (SQL) ──────────────────────
   {
     topic: "string_function",
     patterns: [
@@ -170,7 +185,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Math / Numeric Function ───────────────
+  // ── Math / Numeric Function (SQL) ───────────────
   {
     topic: "math_function",
     patterns: [
@@ -183,7 +198,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Aggregate Function ───────────────────
+  // ── Aggregate Function (SQL) ───────────────────
   {
     topic: "aggregate_function",
     patterns: [
@@ -195,7 +210,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Conversion Function ──────────────────
+  // ── Conversion Function (SQL) ──────────────────
   {
     topic: "conversion_function",
     patterns: [
@@ -206,7 +221,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── JOIN ────────────────────────────────
+  // ── JOIN (SQL) ────────────────────────────────
   {
     topic: "join",
     patterns: [
@@ -218,7 +233,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Subquery / CTE ───────────────────────
+  // ── Subquery / CTE (SQL) ───────────────────────
   {
     topic: "subquery",
     patterns: [
@@ -230,7 +245,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── Index ────────────────────────────────
+  // ── Index (SQL) ────────────────────────────────
   {
     topic: "index",
     patterns: [
@@ -240,7 +255,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── View ─────────────────────────────────
+  // ── View (SQL) ─────────────────────────────────
   {
     topic: "view",
     patterns: [
@@ -249,7 +264,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── DDL ──────────────────────────────────
+  // ── DDL (SQL) ──────────────────────────────────
   {
     topic: "ddl",
     patterns: [
@@ -260,7 +275,7 @@ const TOPIC_RULES = [
     ],
   },
 
-  // ── DML ──────────────────────────────────
+  // ── DML (SQL) ──────────────────────────────────
   {
     topic: "dml",
     patterns: [
@@ -268,6 +283,15 @@ const TOPIC_RULES = [
       /\bUPDATE\s+\w+\s+SET\b/i,
       /\bDELETE\s+(FROM\s+)?\w+/i,
       /\bMERGE\s+\w+/i,
+    ],
+  },
+
+  // ── Engineering & General IT ───────────────────
+  {
+    topic: "engineering_it",
+    patterns: [
+      /\b(thuật\s+toán|lập\s+trình|mạng\s+máy\s+tính|bảo\s+mật|mã\s+hóa|phần\s+cứng|phần\s+mềm|hệ\s+điều\s+hành|giao\s+thức|cơ\s+sở\s+dữ\s+liệu|đệ\s+quy|thuật\s+toán|độ\s+phức\s+tạp|cấu\s+trúc\s+dữ\s+liệu)\b/i,
+      /\b(programming|algorithm|networking|security|cryptography|operating\s+system|protocol|software|hardware|database|recursion|complexity|data\s+structure|api|http|ip\s+address)\b/i,
     ],
   },
 ];
@@ -349,6 +373,13 @@ const inferTopicsFromQuestion = (question = "") => {
 
   if (!matched.length) {
     // Broad-keyword heuristics (Vietnamese)
+    if (/toán|thống kê|phương trình|tích phân|đạo hàm|anova|xác suất|math|statistics|equation/.test(q)) matched.push("math_statistics");
+    if (/sinh vật|quang hợp|tế bào|gen|DNA|vật lý|hóa học|phản ứng|lực hấp dẫn|science|physics|biology|chemistry/.test(q)) matched.push("natural_science");
+    if (/lịch sử|triều đại|cách mạng|địa lý|triết học|văn hóa|pháp luật|history|geography|philosophy/.test(q)) matched.push("social_science");
+    if (/kinh tế|doanh nghiệp|lợi nhuận|tài chính|đầu tư|cung cầu|lạm phát|finance|business|market/.test(q)) matched.push("economics_business");
+    if (/thuật toán|lập trình|mạng|bảo mật|phần mềm|cơ sở dữ liệu|programming|algorithm|software/.test(q)) matched.push("engineering_it");
+    
+    // Fallbacks for SQL
     if (/ngày|tháng|năm|thời gian|date|time/.test(q)) matched.push("date_function");
     if (/chuỗi|ký tự|string|văn bản|text/.test(q)) matched.push("string_function");
     if (/thủ tục|stored proc|procedure|exec/.test(q)) matched.push("stored_procedure");

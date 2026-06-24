@@ -3,13 +3,8 @@
 /**
  * Concept Extractor — trích xuất danh sách "concept đã dạy" từ nội dung bài học.
  *
- * Mục đích: ngăn AI dạy lại cùng một SQL function/keyword ở ngày khác.
- *
- * Strategy:
- *   1. Regex patterns cho SQL keywords / function names
- *   2. Scan heading lines (## / ###) — chỉ giữ heading trông như tên SQL/kỹ thuật,
- *      loại bỏ heading generic ("Kết luận", "Tóm tắt", "Ví dụ", "Ngày 1", v.v.)
- *   3. Return deduplicated uppercase list
+ * Mục đích: ngăn AI dạy lại cùng một khái niệm ở ngày khác.
+ * Hỗ trợ cả chủ đề SQL kỹ thuật và các tài liệu học thuật/khoa học nói chung.
  */
 
 // ─────────────────────────────────────────────
@@ -77,8 +72,6 @@ const normalizeConcept = (raw) =>
 
 // ─────────────────────────────────────────────
 // HEADING FILTER
-// Chỉ giữ heading trông như tên SQL/kỹ thuật thực sự.
-// Loại bỏ: "Kết luận", "Ví dụ", "Ngày 1", "Tóm tắt", v.v.
 // ─────────────────────────────────────────────
 
 // Heading generic tiếng Việt / tiếng Anh — bỏ qua
@@ -87,20 +80,13 @@ const GENERIC_HEADING_RE = /^(kết\s*luận|tóm\s*tắt|ví\s*dụ(\s*thực\s
 // Heading có indicator SQL/kỹ thuật rõ ràng → giữ
 const SQL_INDICATOR_RE = /\b[A-Z_]{2,}\s*\(|\bFUNCTION\b|\bPROCEDURE\b|\bTRIGGER\b|\bINDEX\b|\bVIEW\b|\bCURSOR\b|\bJOIN\b|\bTRANSACTION\b|\bSTATEMENT\b/;
 
-// Stop words không xuất hiện trong tên concept SQL
-const HEADING_STOPWORDS = new Set([
-  "và", "với", "trong", "của", "cho", "các", "một", "được", "này",
-  "khi", "thì", "không", "phải", "như", "theo", "là", "có", "từ", "về", "để",
-  "the", "and", "for", "with", "using", "about", "how", "to", "in", "of", "a", "an",
-]);
-
 /**
- * Kiểm tra heading có phải tên concept SQL/kỹ thuật không.
+ * Kiểm tra heading có phải tên concept học thuật không.
  * Trả về true nếu nên giữ lại.
  */
 const isConceptHeading = (heading) => {
-  // Quá dài → không phải tên function/concept
-  if (heading.split(/\s+/).length > 6) return false;
+  // Quá dài (> 10 từ) → thường là câu dài hoặc content lẫn vào, không phải concept ngắn
+  if (heading.split(/\s+/).length > 10) return false;
 
   // Heading generic → bỏ
   if (GENERIC_HEADING_RE.test(heading)) return false;
@@ -108,10 +94,10 @@ const isConceptHeading = (heading) => {
   // Có indicator SQL rõ ràng → giữ
   if (SQL_INDICATOR_RE.test(heading)) return true;
 
-  // Cụm ≤ 3 từ không có stop word → có thể là tên concept ngắn
-  // Ví dụ: "CAST", "Window Functions", "Stored Procedure"
+  // Đối với tài liệu học thuật/khoa học nói chung, bất kỳ heading hợp lệ nào
+  // không thuộc nhóm generic heading đều là một chủ đề/concept có thể dạy.
   const words = heading.split(/\s+/);
-  if (words.length <= 3 && !words.some(w => HEADING_STOPWORDS.has(w.toLowerCase()))) {
+  if (words.length > 0) {
     return true;
   }
 
@@ -148,17 +134,17 @@ const extractFromHeadings = (text) => {
 // ─────────────────────────────────────────────
 
 /**
- * Extract a deduplicated list of SQL concepts taught in a lesson's content.
+ * Extract a deduplicated list of concepts taught in a lesson's content.
  *
  * @param {string} content  - lesson markdown content
  * @param {string} [title]  - lesson title (also scanned)
- * @returns {string[]}      - e.g. ["CAST", "CONVERT", "LEN", "GROUP BY"]
+ * @returns {string[]}      - e.g. ["CAST", "CONVERT", "QUANG HỢP", "TẾ BÀO"]
  */
 const extractConcepts = (content = "", title = "") => {
   const combined = `${title}\n${content}`;
   const found = new Set();
 
-  // 1. Regex scan for SQL function / keyword names
+  // 1. Regex scan for SQL function / keyword names (nếu có)
   for (const pat of SQL_FUNCTION_PATTERNS) {
     const matches = combined.match(new RegExp(pat.source, "gi")) || [];
     for (const m of matches) {
@@ -166,7 +152,7 @@ const extractConcepts = (content = "", title = "") => {
     }
   }
 
-  // 2. Heading scan — chỉ lấy heading trông như tên concept SQL
+  // 2. Heading scan — lấy tất cả headings đại diện cho các concept học thuật
   for (const h of extractFromHeadings(combined)) {
     found.add(h);
   }
@@ -189,7 +175,7 @@ const mergeConcepts = (existing = [], newConcepts = []) => {
 
 /**
  * Build a short string to inject into the AI prompt.
- * E.g. "CAST, CONVERT, LEN, GROUP BY"
+ * E.g. "CAST, CONVERT, QUANG HỢP"
  *
  * @param {string[]} usedConcepts
  * @returns {string}
@@ -198,4 +184,5 @@ const buildUsedConceptsBlock = (usedConcepts = []) => {
   if (!usedConcepts.length) return "";
   return usedConcepts.join(", ");
 };
+
 module.exports = { extractConcepts, mergeConcepts, buildUsedConceptsBlock };

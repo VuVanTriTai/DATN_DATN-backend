@@ -1805,13 +1805,21 @@ if (isDeep && isPractice) {
 // =========================
 // MAIN PROMPT
 // =========================
-const contentPrompt = `Bạn là BIÊN TẬP VIÊN giáo dục. Nhiệm vụ: TỔ CHỨC LẠI kiến thức từ tài liệu gốc thành bài giảng có cấu trúc.
+const contentPrompt = `Bạn là chuyên viên SOẠN THẢO VÀ CHỌN LỌC nội dung giáo dục. Nhiệm vụ duy nhất của bạn là TUYỂN CHỌN và SẮP XẾP các thông tin thực tế, định nghĩa, công thức có sẵn trong tài liệu gốc (CONTEXT) thành một bài giảng có cấu trúc.
+
+⚠️ PHÒNG NGỪA ẢO KIẾN THỨC (CỰC KỲ QUAN TRỌNG):
+- Bạn đóng vai trò là một người TRÍCH LỌC VÀ SOẠN THẢO (Editor/Curator) chứ không phải người sáng tác kiến thức mới (Creator).
+- TUYỆT ĐỐI KHÔNG ĐƯỢC tự ý sinh thêm, bịa đặt, suy diễn, hoặc mở rộng bất kỳ khái niệm, định lý, ví dụ thực tế hay dòng code nào nằm ngoài tài liệu gốc (CONTEXT).
+- Mỗi kiến thức được trình bày trong bài giảng phải có bằng chứng rõ ràng (traceable) trong CONTEXT. 
+- KHÔNG tự bịa ra các ví dụ số học hoặc số liệu thống kê mới nếu tài liệu gốc không cung cấp.
+- Nếu CONTEXT không đề cập hoặc thiếu thông tin → viết "[Tài liệu nguồn không đề cập]" hoặc bỏ qua hoàn toàn phần đó, TUYỆT ĐỐI KHÔNG được tự điền thông tin thay thế bằng kiến thức chung của bạn.
+
 ${contextWeakHint ? contextWeakHint + "\n" : ""}
 ⚠️ QUY TẮC BẮT BUỘC (vi phạm = bài bị huỷ):
 - CHỈ dùng thông tin CÓ TRONG CONTEXT bên dưới — đây là nguồn duy nhất
 - KHÔNG suy diễn, KHÔNG thêm kiến thức ngoài CONTEXT dưới bất kỳ hình thức nào
 - KHÔNG lặp lại nội dung các bài trước
-- Nếu CONTEXT không đề cập → viết "[Tài liệu không đề cập]" thay vì tự bịa
+- Nếu CONTEXT không đề cập → viết "[Tài liệu nguồn không đề cập]" thay vì tự bịa
 - ƯU TIÊN trích dẫn nguyên văn hoặc diễn giải sát nghĩa từ CONTEXT
 - Mỗi luận điểm PHẢI có cơ sở trong CONTEXT — không được tự thêm ví dụ bịa
 ${conceptMemoryBlock}
@@ -1900,7 +1908,7 @@ YÊU CẦU FORMAT:
 - Mỗi luận điểm PHẢI xuất phát từ thông tin có trong CONTEXT
 - Nếu CONTEXT không đề cập đến thông tin → KHÔNG viết về thông tin đó
 - Ưu tiên PARAPHRASE (diễn giải lại) hoặc TRÍCH DẪN TRỰC TIẾP từ CONTEXT
-- Khi không chắc chắn → dùng câu "Theo tài liệu..." hoặc bỏ qua
+- Khi không chắc chắn → dùng câu "Theo tài liệu nguồn..." hoặc bỏ qua
 `;
 
   // =========================
@@ -1912,7 +1920,7 @@ YÊU CẦU FORMAT:
         {
           role: "system",
           content:
-            "Bạn là biên tập viên giáo dục. Nhiệm vụ là TỔ CHỨC LẠI nội dung từ tài liệu gốc, TUYỆT ĐỐI không được thêm kiến thức ngoài CONTEXT. Nếu không có thông tin trong CONTEXT → viết [Tài liệu không đề cập] thay vì tự thêm vào.",
+            "Bạn là chuyên viên soạn thảo nội dung giáo dục. Nhiệm vụ của bạn là chọn lọc và sắp xếp nội dung từ tài liệu gốc, TUYỆT ĐỐI không được bịa đặt hay thêm bất kỳ kiến thức nào ngoài CONTEXT. Nếu không có thông tin trong CONTEXT → viết [Tài liệu nguồn không đề cập] thay vì tự thêm vào.",
         },
         {
           role: "user",

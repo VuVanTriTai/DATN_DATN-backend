@@ -59,7 +59,8 @@ TRẢ VỀ JSON:
 
 YÊU CẦU QUIZ:
 - Tạo ${minQuiz}-${maxQuiz} câu hỏi trắc nghiệm 4 đáp án
-- Chỉ hỏi về nội dung có trong CONTEXT
+- Chỉ hỏi về nội dung thực tế có sẵn trong CONTEXT. TUYỆT ĐỐI KHÔNG tự tạo ra câu hỏi suy diễn hoặc hỏi về các sự kiện, biến số, khái niệm không xuất hiện trong CONTEXT.
+- Bạn đóng vai trò là người soạn thảo câu hỏi từ tài liệu nguồn, không tự thiết kế kiến thức mới nằm ngoài tài liệu.
 - Không ghi "Đúng:" hoặc "Sai:" trong đáp án
 - correctAnswer là index 0-3`;
 
