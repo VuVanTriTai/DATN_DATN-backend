@@ -131,7 +131,7 @@ const importCourse = async (req, res) => {
 // 3. Lấy danh sách khóa học trên market (có bộ lọc và phân trang)
 const getMarketCourses = async (req, res) => {
   try {
-    const { search, category, level, page = 1, limit = 12, instructorSearch } = req.query;
+    const { search, category, level, page = 1, limit = 12, instructorSearch, sort = 'weekly_downloads' } = req.query;
     const p = parseInt(page) || 1;
     const l = parseInt(limit) || 12;
 
@@ -196,16 +196,80 @@ const getMarketCourses = async (req, res) => {
       ];
     }
 
-    // 2. Thực hiện truy vấn danh sách khóa học
-    const courses = await Plan.find(query)
-      .populate("owner", "fullName email")
-      .populate("instructorId", "fullName email")
-      .sort({ createdAt: -1 })
-      .skip((p - 1) * l)
-      .limit(l)
-      .lean();
+    // 2. Nếu sort theo students hoặc weekly_downloads → cần thống kê trước để sắp xếp
+    //    Nếu sort theo newest → dùng sort MongoDB bình thường
+    let sortedPlanIds = null; // null = không cần pre-sort
 
+    if (sort === 'students' || sort === 'weekly_downloads') {
+      // Lấy tất cả planIds khớp query (không phân trang) để tính thống kê sắp xếp
+      const allMatchedPlans = await Plan.find(query).select('_id').lean();
+      const allPlanIds = allMatchedPlans.map(p => p._id);
+
+      if (sort === 'students') {
+        // Sắp xếp theo tổng số học viên đang học (enrollment active)
+        const studentStats = await Enrollment.aggregate([
+          { $match: { planId: { $in: allPlanIds }, status: 'active' } },
+          { $group: { _id: "$planId", studentCount: { $sum: 1 } } },
+          { $sort: { studentCount: -1 } }
+        ]);
+        const rankedIds = studentStats.map(s => s._id.toString());
+        // Những plan chưa có enrollment → thêm vào cuối
+        const rankedSet = new Set(rankedIds);
+        allPlanIds.forEach(id => {
+          if (!rankedSet.has(id.toString())) rankedIds.push(id.toString());
+        });
+        sortedPlanIds = rankedIds;
+
+      } else if (sort === 'weekly_downloads') {
+        // Sắp xếp theo số lượt tải (import) trong 7 ngày gần nhất
+        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const weeklyStats = await Enrollment.aggregate([
+          {
+            $match: {
+              planId: { $in: allPlanIds },
+              status: 'active',
+              createdAt: { $gte: oneWeekAgo }
+            }
+          },
+          { $group: { _id: "$planId", weeklyCount: { $sum: 1 } } },
+          { $sort: { weeklyCount: -1 } }
+        ]);
+        const rankedIds = weeklyStats.map(s => s._id.toString());
+        const rankedSet = new Set(rankedIds);
+        allPlanIds.forEach(id => {
+          if (!rankedSet.has(id.toString())) rankedIds.push(id.toString());
+        });
+        sortedPlanIds = rankedIds;
+      }
+    }
+
+    // 3. Lấy danh sách khoá học theo thứ tự đã sắp xếp (có phân trang)
+    let courses;
     const total = await Plan.countDocuments(query);
+
+    if (sortedPlanIds) {
+      // Phân trang thủ công dựa trên danh sách đã sắp xếp
+      const pageIds = sortedPlanIds.slice((p - 1) * l, p * l);
+      const mongoose = require('mongoose');
+      const objectIds = pageIds.map(id => new mongoose.Types.ObjectId(id));
+      const rawCourses = await Plan.find({ _id: { $in: objectIds } })
+        .populate("owner", "fullName email")
+        .populate("instructorId", "fullName email")
+        .lean();
+      // Giữ đúng thứ tự đã sắp xếp
+      const courseMap = {};
+      rawCourses.forEach(c => courseMap[c._id.toString()] = c);
+      courses = pageIds.map(id => courseMap[id]).filter(Boolean);
+    } else {
+      // Sort mặc định: mới nhất
+      courses = await Plan.find(query)
+        .populate("owner", "fullName email")
+        .populate("instructorId", "fullName email")
+        .sort({ createdAt: -1 })
+        .skip((p - 1) * l)
+        .limit(l)
+        .lean();
+    }
 
     // Nếu không có khóa học nào, trả về mảng rỗng
     if (courses.length === 0) {
@@ -217,19 +281,20 @@ const getMarketCourses = async (req, res) => {
       });
     }
 
-    // 3. Lấy danh sách ID các khóa học hiện tại để thống kê
+    // 4. Lấy danh sách ID các khóa học hiện tại để thống kê bổ sung
     const planIds = courses.map(c => c._id);
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    // 4. Chạy song song thống kê Enrollment và Reviews
-    const [enrollmentStats, reviewStats] = await Promise.all([
+    // 5. Chạy song song thống kê Enrollment, Reviews và lượt tải tuần
+    const [enrollmentStats, reviewStats, weeklyStats] = await Promise.all([
       // Thống kê số lượng học viên
       Enrollment.aggregate([
-        { $match: { planId: { $in: planIds }, status: 'active' } },//chỉ lấy những khóa học có trong danh sách planIds và có trạng thái là active
+        { $match: { planId: { $in: planIds }, status: 'active' } },
         { $group: { _id: "$planId", studentCount: { $sum: 1 } } }
       ]),
       // Thống kê đánh giá sao và số lượt bình luận
       Review.aggregate([
-        { $match: { planId: { $in: planIds }, parentId: null, isDeleted: false } },//chỉ lấy những đánh giá có trong danh sách planIds và có parentId là null và isDeleted là false
+        { $match: { planId: { $in: planIds }, parentId: null, isDeleted: false } },
         {
           $group: {
             _id: "$planId",
@@ -237,6 +302,11 @@ const getMarketCourses = async (req, res) => {
             reviewCount: { $sum: 1 }
           }
         }
+      ]),
+      // Thống kê số lượt tải trong tuần
+      Enrollment.aggregate([
+        { $match: { planId: { $in: planIds }, status: 'active', createdAt: { $gte: oneWeekAgo } } },
+        { $group: { _id: "$planId", weeklyDownloads: { $sum: 1 } } }
       ])
     ]);
 
@@ -247,18 +317,22 @@ const getMarketCourses = async (req, res) => {
     const reviewMap = {};
     reviewStats.forEach(s => reviewMap[s._id.toString()] = s);
 
-    // 5. Tổng hợp dữ liệu cuối cùng
+    const weeklyMap = {};
+    weeklyStats.forEach(s => weeklyMap[s._id.toString()] = s.weeklyDownloads);
+
+    // 6. Tổng hợp dữ liệu cuối cùng
     const finalCourses = courses.map(course => {
       const idStr = course._id.toString();
       return {
         ...course,
         studentCount: enrollmentMap[idStr] || 0,
         avgRating: reviewMap[idStr] ? parseFloat(reviewMap[idStr].avgRating.toFixed(1)) : 0,
-        reviewCount: reviewMap[idStr] ? reviewMap[idStr].reviewCount : 0
+        reviewCount: reviewMap[idStr] ? reviewMap[idStr].reviewCount : 0,
+        weeklyDownloads: weeklyMap[idStr] || 0
       };
     });
 
-    // 6. Trả về kết quả
+    // 7. Trả về kết quả
     return res.success({
       courses: finalCourses,
       total,
